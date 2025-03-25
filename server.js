@@ -13,7 +13,13 @@ const prospectRoutes = require('./routes/prospects');
 const app = express();
 
 // Middleware
-app.use(cors());
+app.use(cors({
+  origin: [
+    'https://hubkom-crm-frontend.vercel.app', // Replace with your actual Vercel URL
+    'http://localhost:3000' // Keep this for local development
+  ],
+  credentials: true
+}));
 app.use(express.json());
 
 // MongoDB connection
