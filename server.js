@@ -2,12 +2,21 @@ const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
 const dotenv = require('dotenv');
+const fs = require('fs');
+const path = require('path');
 
 // Load environment variables
 dotenv.config();
 
 // Import routes
 const prospectRoutes = require('./routes/prospects');
+
+// Import middleware
+// Create middleware directory if it doesn't exist
+const middlewarePath = path.join(__dirname, 'middleware');
+if (!fs.existsSync(middlewarePath)) {
+  fs.mkdirSync(middlewarePath);
+}
 
 // Create Express app
 const app = express();
@@ -31,17 +40,37 @@ mongoose.connect(MONGODB_URI)
     process.exit(1);
   });
 
-// Routes
-app.use('/api/prospects', prospectRoutes);
-
-// Home route
+// Public route
 app.get('/', (req, res) => {
   res.send('Simple CRM API is running!');
 });
 
+// API routes with conditional auth middleware
+if (process.env.AUTH0_ENABLED === 'true') {
+  // Use authentication when enabled
+  try {
+    const checkJwt = require('./middleware/auth');
+    app.use('/api/prospects', checkJwt, prospectRoutes);
+    console.log('Authentication middleware enabled');
+  } catch (error) {
+    console.error('Error loading auth middleware:', error);
+    app.use('/api/prospects', prospectRoutes);
+  }
+} else {
+  // Skip authentication for development
+  app.use('/api/prospects', prospectRoutes);
+  console.log('Authentication middleware disabled');
+}
+
 // Error handling middleware
 app.use((err, req, res, next) => {
   console.error(err.stack);
+  
+  // Handle auth errors
+  if (err.name === 'UnauthorizedError') {
+    return res.status(401).json({ message: 'Invalid token or not authenticated' });
+  }
+  
   res.status(500).json({
     message: 'Something went wrong!',
     error: process.env.NODE_ENV === 'production' ? {} : err
